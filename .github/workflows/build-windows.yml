@@ -1,0 +1,57 @@
+name: Build Bendera for Windows
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: cmake -S . -B build -A x64
+
+      - name: Build Release
+        run: cmake --build build --config Release --parallel
+
+      - name: Stage playable package
+        shell: pwsh
+        run: |
+          $package = "package/Bendera"
+          New-Item -ItemType Directory -Force -Path $package | Out-Null
+
+          $exe = Get-ChildItem -Path build -Filter Bendera.exe -Recurse | Select-Object -First 1
+          if (-not $exe) { throw "Bendera.exe was not produced." }
+
+          Copy-Item $exe.FullName "$package/Bendera.exe"
+          Copy-Item "Side Scroller/assets" "$package/assets" -Recurse
+          Copy-Item "Side Scroller/arial.ttf" "$package/arial.ttf"
+
+          @"
+          BENDERA - WINDOWS BUILD
+
+          Extract this folder before running the game.
+          Run Bendera.exe.
+
+          Controls:
+          - Space: Jump
+          - X: Energy attack while transformed into Bendera
+          - Enter: Restart/continue on state screens
+          - Esc: Quit
+
+          Source: https://github.com/Jmatt3441/Bendera
+          "@ | Set-Content "$package/PLAY.txt"
+
+      - name: Upload playable Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bendera-Windows-x64
+          path: package/Bendera
+          if-no-files-found: error
